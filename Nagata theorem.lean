@@ -1,9 +1,11 @@
 import Mathlib
 
---In this file we prove Nagata's theorem: if R is a Noetherian domain
+--In this file we prove Nagata's criterion for UFD: if R is a Noetherian domain
 --and T is the localization of R at a prime element f, and T is a UFD,
 --then R is also a UFD.
+--The main theorem is nagata_theorem at the bottom of the file.
 
+--The proof folllows the outline in https://www.math.wustl.edu/~kumar/courses/Algebra5031fall2015/Nagata.pdf
 
 --show that the algebra map from R to its localization T is injective
 theorem nagata_setup {R T : Type*} [CommRing R] [CommRing T] [Algebra R T] [IsDomain R]
@@ -86,7 +88,7 @@ theorem prime_in_T_lifts_to_R {R T : Type*} [CommRing R] [CommRing T] [Algebra R
   -- now `a` is the reduced representative with `¬ f ∣ a`
   have f_ndivide_a : ¬ (f ∣ a) := a_ndvd
 
--- finally, show that `a` is prime in `R`
+-- finally, show that `a` is prime in `R` using the definition of primality
   have h_prime_a : Prime a := by
     constructor
     · -- a ≠ 0: since its image is associated to the nonzero prime q
@@ -163,6 +165,7 @@ theorem prime_in_T_lifts_to_R {R T : Type*} [CommRing R] [CommRing T] [Algebra R
                 exact ih r' eq'
           exact key n r eq_in_R
 
+        -- now finish the two cases: a ∣ b or a ∣ c
         cases div_case with
         | inl hdiv => exact Or.inl (case_for b hdiv)
         | inr hdiv => exact Or.inr (case_for c hdiv)
@@ -170,7 +173,7 @@ theorem prime_in_T_lifts_to_R {R T : Type*} [CommRing R] [CommRing T] [Algebra R
 
   exact ⟨a, h_prime_a, h_assoc, f_ndivide_a⟩
 
---
+--use above lemma to lift a multiset of primes in T to R
 theorem lift_multiset_of_primes {R T : Type*} [CommRing R] [CommRing T] [Algebra R T]
     [IsDomain R] [IsDomain T] [IsNoetherianRing R]
     (f : R) (hf0 : f ≠ 0) (hfprime : Prime f) (hT : IsLocalization.Away (f : R) T)
@@ -215,10 +218,15 @@ theorem lift_multiset_of_primes {R T : Type*} [CommRing R] [CommRing T] [Algebra
       | inr h => have : q = r := Multiset.mem_singleton.1 h; subst this; exact hr_ndvd
     · use (u2 * u1); exact mul_eq
 
+--main existence lemma for Nagata's Criterion,
+--lifting factorizations from T to R modulo some powers of f, but f is a prime element in R
+--So it completes to a full factorization in R by adding some copies of f to the multiset.
 theorem existence_step {R T : Type*} [CommRing R] [CommRing T] [Algebra R T] [IsDomain R]
     [IsDomain T] [IsNoetherianRing R] (f : R) (hf0 : f ≠ 0) (hfprime : Prime f)
     (hT : IsLocalization.Away (f : R) T) [UniqueFactorizationMonoid T] :
     ∀ x : R, x ≠ 0 → ∃ sR : Multiset R, (∀ p ∈ sR, Prime p) ∧ Associated (sR.prod : R) x := by
+
+  --factor algebraMap x in T, then lift the factors to R up to association by the previous lemmas
   intro x hx
   obtain ⟨s, hs_primes, hs_assoc⟩ := factors_in_T f hf0 hT x hx
   obtain ⟨sR, hsR_primes, hsR_ndiv, hsR_assoc_T⟩ :=
@@ -239,6 +247,7 @@ theorem existence_step {R T : Type*} [CommRing R] [CommRing T] [Algebra R T] [Is
       _ = algebraMap R T (x * f ^ n) := by simp [map_mul]
   have inj := nagata_setup f hf0 hT
   have eq_in_R : sR.prod * a' = x * f ^ n := inj (by simp [prod_eq])
+
   -- Since f is prime and does not divide any prime factor of sR, it does not divide sR.prod.
   have f_ndvd_prod : ¬ (f ∣ sR.prod) := by
     have h_list : ¬ (f ∣ (sR.toList).prod) := by
@@ -251,12 +260,9 @@ theorem existence_step {R T : Type*} [CommRing R] [CommRing T] [Algebra R T] [Is
     have h' : f ∣ (sR.toList).prod := by rwa [prod_eq_list] at h
     exact h_list h'
 
-
-
-  -- Note: we will only prove `f ∣ a'` in the branch where `n > 0`.
-
   -- Split on whether the exponent `n` is positive or zero. We handle the `n > 0`
-  -- case first because it will be reduced to the `n = 0` case by dividing `a'` by `f`.
+  -- Note: we will only prove `f ∣ a'` in the branch where `n > 0`.
+  -- `n > 0` case first because it will be reduced to the `n = 0` case by dividing `a'` by `f`.
   have h_exists : ∃ a'' : R, Associated (sR.prod * a'') x := by
     -- define a recursive predicate: for any `m` and `a` with `sR.prod * a = x * f ^ m`
     -- produce the required `a''` by cancelling powers of `f` one-by-one.
@@ -291,7 +297,7 @@ theorem existence_step {R T : Type*} [CommRing R] [CommRing T] [Algebra R T] [Is
           exact ih a1 eq_reduced
     exact rec_aux n a' eq_in_R
 
-
+  -- now we have some `a''` with `sR.prod * a''` associated to `x`
   obtain ⟨a'', h_assoc⟩ := h_exists
   have h_map_unit : IsUnit (algebraMap R T a'') := by
     -- h_assoc : (sR.prod * a'') * v = x for some unit v in R
@@ -395,7 +401,9 @@ theorem existence_step {R T : Type*} [CommRing R] [CommRing T] [Algebra R T] [Is
     | inr h => have : p = f := Multiset.eq_of_mem_replicate h; subst this; exact hfprime
   · exact final_associated
 
-
+--main theorem: Nagata's criterion for UFDs
+--Notice that the existence_step is the only nontrivial part of the proof,
+--the uniqueness of factorization in R follows directly from the existence of factorizations
 theorem nagata_theorem {R T : Type*}
   [CommRing R] [CommRing T] [Algebra R T] [IsDomain R] [IsDomain T]
   [IsNoetherianRing R] (f : R) (hf0 : f ≠ 0) (hfprime : Prime f)
